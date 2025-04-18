@@ -1218,3 +1218,8 @@ FROM foo""",
 
     def test_parse_identifier(self):
         self.assertEqual(exp.parse_identifier("a ' b"), exp.to_identifier("a ' b"))
+
+    def test_hash_large_asts(self):
+        # Ensures we can actually compare large ASTs and not fail due to exceeding recursion limit
+        ast = parse_one("SELECT 1 UNION ALL " * 500 + "SELECT 1")
+        assert isinstance(hash(ast), int)

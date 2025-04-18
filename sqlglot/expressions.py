@@ -119,18 +119,48 @@ class Expression(metaclass=_Expression):
         return type(self) is type(other) and hash(self) == hash(other)
 
     @property
-    def hashable_args(self) -> t.Any:
-        return frozenset(
-            (k, tuple(_norm_arg(a) for a in v) if type(v) is list else _norm_arg(v))
-            for k, v in self.args.items()
-            if not (v is None or v is False or (type(v) is list and not v))
-        )
+    def hashed_args(self) -> t.Optional[int]:
+        return None
 
     def __hash__(self) -> int:
         if self._hash is not None:
             return self._hash
 
-        return hash((self.__class__, self.hashable_args))
+        stack = [(self, False)]
+        hash_by_expression_id: t.Dict[int, int] = {}
+
+        def _norm_arg(arg: t.Any) -> t.Any:
+            # We lowercase string arguments to properly compare vars, e.g. properties etc
+            return (
+                hash_by_expression_id[id(arg)]
+                if isinstance(arg, Expression)
+                else (arg.lower() if type(arg) is str else arg)
+            )
+
+        while stack:
+            expression, is_visited = stack.pop()
+
+            if is_visited:
+                hashed_args = expression.hashed_args
+                if hashed_args is None:
+                    hashed_args_set = frozenset(
+                        (k, tuple(_norm_arg(e) for e in v) if type(v) is list else _norm_arg(v))
+                        for k, v in expression.args.items()
+                        if not (v is None or v is False or (type(v) is list and not v))
+                    )
+                    hashed_args = hash(hashed_args_set)
+
+                hash_by_expression_id[id(expression)] = hash((expression.__class__, hashed_args))
+            else:
+                stack.append((expression, True))
+                stack.extend(
+                    (child, False)
+                    for arg in reversed(expression.args.values())
+                    for child in ensure_list(arg)
+                    if isinstance(child, Expression)
+                )
+
+        return hash_by_expression_id[id(self)]
 
     @property
     def this(self) -> t.Any:
@@ -2200,8 +2230,15 @@ class Identifier(Expression):
         return bool(self.args.get("quoted"))
 
     @property
-    def hashable_args(self) -> t.Any:
-        return (self.this, self.quoted)
+    def hashed_args(self) -> t.Optional[int]:
+        return hash(
+            (
+                self.this,
+                self.quoted,
+                bool(self.args.get("global")),
+                bool(self.args.get("temporary")),
+            )
+        )
 
     @property
     def output_name(self) -> str:
@@ -2434,8 +2471,8 @@ class Literal(Condition):
     arg_types = {"this": True, "is_string": True}
 
     @property
-    def hashable_args(self) -> t.Any:
-        return (self.this, self.args.get("is_string"))
+    def hashed_args(self) -> t.Optional[int]:
+        return hash((self.this, self.args.get("is_string")))
 
     @classmethod
     def number(cls, number) -> Literal:
@@ -6958,10 +6995,6 @@ class NextValueFor(Func):
 # select 1; -- my comment
 class Semicolon(Expression):
     arg_types = {}
-
-
-def _norm_arg(arg):
-    return arg.lower() if type(arg) is str else arg
 
 
 ALL_FUNCTIONS = subclasses(__name__, Func, (AggFunc, Anonymous, Func))
