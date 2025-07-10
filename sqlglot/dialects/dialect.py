@@ -71,6 +71,7 @@ class Dialects(str, Enum):
     ATHENA = "athena"
     BIGQUERY = "bigquery"
     CLICKHOUSE = "clickhouse"
+    DAMENG = "dameng"
     DATABRICKS = "databricks"
     DORIS = "doris"
     DREMIO = "dremio"
@@ -188,19 +189,20 @@ class _Dialect(type):
     def __new__(cls, clsname, bases, attrs):
         klass = super().__new__(cls, clsname, bases, attrs)
         enum = Dialects.__members__.get(clsname.upper())
-        cls._classes[enum.value if enum is not None else clsname.lower()] = klass
+        cls._classes[enum.value if enum is not None else clsname.lower()] = klass  # type: ignore
 
-        klass.TIME_TRIE = new_trie(klass.TIME_MAPPING)
-        klass.FORMAT_TRIE = (
-            new_trie(klass.FORMAT_MAPPING) if klass.FORMAT_MAPPING else klass.TIME_TRIE
+        klass.TIME_TRIE = new_trie(klass.TIME_MAPPING)  # type: ignore
+        klass.FORMAT_TRIE = (  # type: ignore
+            new_trie(klass.FORMAT_MAPPING) if klass.FORMAT_MAPPING else klass.TIME_TRIE  # type: ignore
         )
-        klass.INVERSE_TIME_MAPPING = {v: k for k, v in klass.TIME_MAPPING.items()}
-        klass.INVERSE_TIME_TRIE = new_trie(klass.INVERSE_TIME_MAPPING)
-        klass.INVERSE_FORMAT_MAPPING = {v: k for k, v in klass.FORMAT_MAPPING.items()}
-        klass.INVERSE_FORMAT_TRIE = new_trie(klass.INVERSE_FORMAT_MAPPING)
+        klass.INVERSE_TIME_MAPPING = {v: k for k, v in klass.TIME_MAPPING.items()}  # type: ignore
+        klass.INVERSE_TIME_TRIE = new_trie(klass.INVERSE_TIME_MAPPING)  # type: ignore
+        klass.INVERSE_FORMAT_MAPPING = {v: k for k, v in klass.FORMAT_MAPPING.items()}  # type: ignore
+        klass.INVERSE_FORMAT_TRIE = new_trie(klass.INVERSE_FORMAT_MAPPING)  # type: ignore
 
-        klass.INVERSE_CREATABLE_KIND_MAPPING = {
-            v: k for k, v in klass.CREATABLE_KIND_MAPPING.items()
+        klass.INVERSE_CREATABLE_KIND_MAPPING = {  # type: ignore
+            v: k
+            for k, v in klass.CREATABLE_KIND_MAPPING.items()  # type: ignore
         }
 
         base = seq_get(bases, 0)
@@ -209,74 +211,74 @@ class _Dialect(type):
         base_parser = (getattr(base, "parser_class", Parser),)
         base_generator = (getattr(base, "generator_class", Generator),)
 
-        klass.tokenizer_class = klass.__dict__.get(
+        klass.tokenizer_class = klass.__dict__.get(  # type: ignore
             "Tokenizer", type("Tokenizer", base_tokenizer, {})
         )
-        klass.jsonpath_tokenizer_class = klass.__dict__.get(
+        klass.jsonpath_tokenizer_class = klass.__dict__.get(  # type: ignore
             "JSONPathTokenizer", type("JSONPathTokenizer", base_jsonpath_tokenizer, {})
         )
-        klass.parser_class = klass.__dict__.get("Parser", type("Parser", base_parser, {}))
-        klass.generator_class = klass.__dict__.get(
+        klass.parser_class = klass.__dict__.get("Parser", type("Parser", base_parser, {}))  # type: ignore
+        klass.generator_class = klass.__dict__.get(  # type: ignore
             "Generator", type("Generator", base_generator, {})
         )
 
-        klass.QUOTE_START, klass.QUOTE_END = list(klass.tokenizer_class._QUOTES.items())[0]
-        klass.IDENTIFIER_START, klass.IDENTIFIER_END = list(
-            klass.tokenizer_class._IDENTIFIERS.items()
+        klass.QUOTE_START, klass.QUOTE_END = list(klass.tokenizer_class._QUOTES.items())[0]  # type: ignore
+        klass.IDENTIFIER_START, klass.IDENTIFIER_END = list(  # type: ignore
+            klass.tokenizer_class._IDENTIFIERS.items()  # type: ignore
         )[0]
 
         def get_start_end(token_type: TokenType) -> t.Tuple[t.Optional[str], t.Optional[str]]:
             return next(
                 (
                     (s, e)
-                    for s, (e, t) in klass.tokenizer_class._FORMAT_STRINGS.items()
+                    for s, (e, t) in klass.tokenizer_class._FORMAT_STRINGS.items()  # type: ignore
                     if t == token_type
                 ),
                 (None, None),
             )
 
-        klass.BIT_START, klass.BIT_END = get_start_end(TokenType.BIT_STRING)
-        klass.HEX_START, klass.HEX_END = get_start_end(TokenType.HEX_STRING)
-        klass.BYTE_START, klass.BYTE_END = get_start_end(TokenType.BYTE_STRING)
-        klass.UNICODE_START, klass.UNICODE_END = get_start_end(TokenType.UNICODE_STRING)
+        klass.BIT_START, klass.BIT_END = get_start_end(TokenType.BIT_STRING)  # type: ignore
+        klass.HEX_START, klass.HEX_END = get_start_end(TokenType.HEX_STRING)  # type: ignore
+        klass.BYTE_START, klass.BYTE_END = get_start_end(TokenType.BYTE_STRING)  # type: ignore
+        klass.UNICODE_START, klass.UNICODE_END = get_start_end(TokenType.UNICODE_STRING)  # type: ignore
 
-        if "\\" in klass.tokenizer_class.STRING_ESCAPES:
-            klass.UNESCAPED_SEQUENCES = {
+        if "\\" in klass.tokenizer_class.STRING_ESCAPES:  # type: ignore
+            klass.UNESCAPED_SEQUENCES = {  # type: ignore
                 **UNESCAPED_SEQUENCES,
-                **klass.UNESCAPED_SEQUENCES,
+                **klass.UNESCAPED_SEQUENCES,  # type: ignore
             }
 
-        klass.ESCAPED_SEQUENCES = {v: k for k, v in klass.UNESCAPED_SEQUENCES.items()}
+        klass.ESCAPED_SEQUENCES = {v: k for k, v in klass.UNESCAPED_SEQUENCES.items()}  # type: ignore
 
-        klass.SUPPORTS_COLUMN_JOIN_MARKS = "(+)" in klass.tokenizer_class.KEYWORDS
+        klass.SUPPORTS_COLUMN_JOIN_MARKS = "(+)" in klass.tokenizer_class.KEYWORDS  # type: ignore
 
         if enum not in ("", "bigquery"):
-            klass.generator_class.SELECT_KINDS = ()
+            klass.generator_class.SELECT_KINDS = ()  # type: ignore
 
         if enum not in ("", "athena", "presto", "trino", "duckdb"):
-            klass.generator_class.TRY_SUPPORTED = False
-            klass.generator_class.SUPPORTS_UESCAPE = False
+            klass.generator_class.TRY_SUPPORTED = False  # type: ignore
+            klass.generator_class.SUPPORTS_UESCAPE = False  # type: ignore
 
         if enum not in ("", "databricks", "hive", "spark", "spark2"):
-            modifier_transforms = klass.generator_class.AFTER_HAVING_MODIFIER_TRANSFORMS.copy()
+            modifier_transforms = klass.generator_class.AFTER_HAVING_MODIFIER_TRANSFORMS.copy()  # type: ignore
             for modifier in ("cluster", "distribute", "sort"):
                 modifier_transforms.pop(modifier, None)
 
-            klass.generator_class.AFTER_HAVING_MODIFIER_TRANSFORMS = modifier_transforms
+            klass.generator_class.AFTER_HAVING_MODIFIER_TRANSFORMS = modifier_transforms  # type: ignore
 
         if enum not in ("", "doris", "mysql"):
-            klass.parser_class.ID_VAR_TOKENS = klass.parser_class.ID_VAR_TOKENS | {
+            klass.parser_class.ID_VAR_TOKENS = klass.parser_class.ID_VAR_TOKENS | {  # type: ignore
                 TokenType.STRAIGHT_JOIN,
             }
-            klass.parser_class.TABLE_ALIAS_TOKENS = klass.parser_class.TABLE_ALIAS_TOKENS | {
+            klass.parser_class.TABLE_ALIAS_TOKENS = klass.parser_class.TABLE_ALIAS_TOKENS | {  # type: ignore
                 TokenType.STRAIGHT_JOIN,
             }
 
         if enum not in ("", "databricks", "oracle", "redshift", "snowflake", "spark"):
-            klass.generator_class.SUPPORTS_DECODE_CASE = False
+            klass.generator_class.SUPPORTS_DECODE_CASE = False  # type: ignore
 
-        if not klass.SUPPORTS_SEMI_ANTI_JOIN:
-            klass.parser_class.TABLE_ALIAS_TOKENS = klass.parser_class.TABLE_ALIAS_TOKENS | {
+        if not klass.SUPPORTS_SEMI_ANTI_JOIN:  # type: ignore
+            klass.parser_class.TABLE_ALIAS_TOKENS = klass.parser_class.TABLE_ALIAS_TOKENS | {  # type: ignore
                 TokenType.ANTI,
                 TokenType.SEMI,
             }
@@ -884,7 +886,7 @@ class Dialect(metaclass=_Dialect):
                 kwargs = {}
                 for pair in kv_pairs:
                     key = pair[0].strip()
-                    value: t.Union[bool | str | None] = None
+                    value: t.Union[bool, str, None] = None
 
                     if len(pair) == 1:
                         # Default initialize standalone settings to True

@@ -4513,6 +4513,7 @@ class DataType(Expression):
         BOOLEAN = auto()
         BPCHAR = auto()
         CHAR = auto()
+        CLOB = auto()
         DATE = auto()
         DATE32 = auto()
         DATEMULTIRANGE = auto()
@@ -4572,6 +4573,7 @@ class DataType(Expression):
         NESTED = auto()
         NOTHING = auto()
         NULL = auto()
+        NUMBER = auto()
         NUMMULTIRANGE = auto()
         NUMRANGE = auto()
         NVARCHAR = auto()
@@ -4623,6 +4625,7 @@ class DataType(Expression):
         XML = auto()
         YEAR = auto()
         TDIGEST = auto()
+        REAL = auto()
 
     STRUCT_TYPES = {
         Type.NESTED,
@@ -7546,7 +7549,7 @@ def except_(
 
     Args:
         expressions: the SQL code strings, corresponding to the `EXCEPT`'s operands.
-            If `Expression` instances are passed, they will be used as-is.
+            If `Expression` instance are passed, they will be used as-is.
         distinct: set the DISTINCT flag if and only if this is true.
         dialect: the dialect used to parse the input expression.
         copy: whether to copy the expression.

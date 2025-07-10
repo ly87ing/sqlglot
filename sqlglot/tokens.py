@@ -24,6 +24,25 @@ try:
 except ImportError:
     USE_RS_TOKENIZER = False
 
+    class RsTokenizer:  # type: ignore
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def tokenize(self, *args, **kwargs) -> t.Tuple[t.List, str]:
+            return [], "Rust tokenizer not available"
+
+    class RsTokenizerDialectSettings:  # type: ignore
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class RsTokenizerSettings:  # type: ignore
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class RsTokenTypeSettings:  # type: ignore
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
 
 class TokenType(AutoName):
     L_PAREN = auto()
@@ -304,6 +323,7 @@ class TokenType(AutoName):
     ILIKE_ANY = auto()
     IN = auto()
     INDEX = auto()
+    IDENTITY = auto()
     INNER = auto()
     INSERT = auto()
     INTERSECT = auto()
@@ -506,74 +526,75 @@ class _Tokenizer(type):
         ) -> t.Dict[str, t.Tuple[str, TokenType]]:
             return {k: (v, token_type) for k, v in _convert_quotes(arr).items()}
 
-        klass._QUOTES = _convert_quotes(klass.QUOTES)
-        klass._IDENTIFIERS = _convert_quotes(klass.IDENTIFIERS)
+        attrs["_QUOTES"] = _convert_quotes(attrs.get("QUOTES", []))
+        attrs["_IDENTIFIERS"] = _convert_quotes(attrs.get("IDENTIFIERS", []))
 
-        klass._FORMAT_STRINGS = {
+        attrs["_FORMAT_STRINGS"] = {
             **{
                 p + s: (e, TokenType.NATIONAL_STRING)
-                for s, e in klass._QUOTES.items()
+                for s, e in attrs["_QUOTES"].items()
                 for p in ("n", "N")
             },
-            **_quotes_to_format(TokenType.BIT_STRING, klass.BIT_STRINGS),
-            **_quotes_to_format(TokenType.BYTE_STRING, klass.BYTE_STRINGS),
-            **_quotes_to_format(TokenType.HEX_STRING, klass.HEX_STRINGS),
-            **_quotes_to_format(TokenType.RAW_STRING, klass.RAW_STRINGS),
-            **_quotes_to_format(TokenType.HEREDOC_STRING, klass.HEREDOC_STRINGS),
-            **_quotes_to_format(TokenType.UNICODE_STRING, klass.UNICODE_STRINGS),
+            **_quotes_to_format(TokenType.BIT_STRING, attrs.get("BIT_STRINGS", [])),
+            **_quotes_to_format(TokenType.BYTE_STRING, attrs.get("BYTE_STRINGS", [])),
+            **_quotes_to_format(TokenType.HEX_STRING, attrs.get("HEX_STRINGS", [])),
+            **_quotes_to_format(TokenType.RAW_STRING, attrs.get("RAW_STRINGS", [])),
+            **_quotes_to_format(TokenType.HEREDOC_STRING, attrs.get("HEREDOC_STRINGS", [])),
+            **_quotes_to_format(TokenType.UNICODE_STRING, attrs.get("UNICODE_STRINGS", [])),
         }
 
-        klass._STRING_ESCAPES = set(klass.STRING_ESCAPES)
-        klass._IDENTIFIER_ESCAPES = set(klass.IDENTIFIER_ESCAPES)
-        klass._COMMENTS = {
+        attrs["_STRING_ESCAPES"] = set(attrs.get("STRING_ESCAPES", []))
+        attrs["_IDENTIFIER_ESCAPES"] = set(attrs.get("IDENTIFIER_ESCAPES", []))
+        attrs["_COMMENTS"] = {
             **dict(
                 (comment, None) if isinstance(comment, str) else (comment[0], comment[1])
-                for comment in klass.COMMENTS
+                for comment in attrs.get("COMMENTS", [])
             ),
             "{#": "#}",  # Ensure Jinja comments are tokenized correctly in all dialects
         }
-        if klass.HINT_START in klass.KEYWORDS:
-            klass._COMMENTS[klass.HINT_START] = "*/"
+        hint_start = attrs.get("HINT_START")
+        if hint_start and hint_start in attrs.get("KEYWORDS", {}):
+            attrs["_COMMENTS"][hint_start] = "*/"
 
-        klass._KEYWORD_TRIE = new_trie(
+        attrs["_KEYWORD_TRIE"] = new_trie(
             key.upper()
             for key in (
-                *klass.KEYWORDS,
-                *klass._COMMENTS,
-                *klass._QUOTES,
-                *klass._FORMAT_STRINGS,
+                *attrs.get("KEYWORDS", {}),
+                *attrs["_COMMENTS"],
+                *attrs["_QUOTES"],
+                *attrs["_FORMAT_STRINGS"],
             )
-            if " " in key or any(single in key for single in klass.SINGLE_TOKENS)
+            if " " in key or any(single in key for single in attrs.get("SINGLE_TOKENS", {}))
         )
 
         if USE_RS_TOKENIZER:
             settings = RsTokenizerSettings(
-                white_space={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in klass.WHITE_SPACE.items()},
-                single_tokens={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in klass.SINGLE_TOKENS.items()},
-                keywords={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in klass.KEYWORDS.items()},
-                numeric_literals=klass.NUMERIC_LITERALS,
-                identifiers=klass._IDENTIFIERS,
-                identifier_escapes=klass._IDENTIFIER_ESCAPES,
-                string_escapes=klass._STRING_ESCAPES,
-                quotes=klass._QUOTES,
+                white_space={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in attrs.get("WHITE_SPACE", {}).items()},
+                single_tokens={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in attrs.get("SINGLE_TOKENS", {}).items()},
+                keywords={k: _TOKEN_TYPE_TO_INDEX[v] for k, v in attrs.get("KEYWORDS", {}).items()},
+                numeric_literals=attrs.get("NUMERIC_LITERALS", {}),
+                identifiers=attrs["_IDENTIFIERS"],
+                identifier_escapes=attrs["_IDENTIFIER_ESCAPES"],
+                string_escapes=attrs["_STRING_ESCAPES"],
+                quotes=attrs["_QUOTES"],
                 format_strings={
                     k: (v1, _TOKEN_TYPE_TO_INDEX[v2])
-                    for k, (v1, v2) in klass._FORMAT_STRINGS.items()
+                    for k, (v1, v2) in attrs["_FORMAT_STRINGS"].items()
                 },
-                has_bit_strings=bool(klass.BIT_STRINGS),
-                has_hex_strings=bool(klass.HEX_STRINGS),
-                comments=klass._COMMENTS,
-                var_single_tokens=klass.VAR_SINGLE_TOKENS,
-                commands={_TOKEN_TYPE_TO_INDEX[v] for v in klass.COMMANDS},
+                has_bit_strings=bool(attrs.get("BIT_STRINGS", [])),
+                has_hex_strings=bool(attrs.get("HEX_STRINGS", [])),
+                comments=attrs["_COMMENTS"],
+                var_single_tokens=attrs.get("VAR_SINGLE_TOKENS", set()),
+                commands={_TOKEN_TYPE_TO_INDEX[v] for v in attrs.get("COMMANDS", set())},
                 command_prefix_tokens={
-                    _TOKEN_TYPE_TO_INDEX[v] for v in klass.COMMAND_PREFIX_TOKENS
+                    _TOKEN_TYPE_TO_INDEX[v] for v in attrs.get("COMMAND_PREFIX_TOKENS", set())
                 },
-                heredoc_tag_is_identifier=klass.HEREDOC_TAG_IS_IDENTIFIER,
-                string_escapes_allowed_in_raw_strings=klass.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS,
-                nested_comments=klass.NESTED_COMMENTS,
-                hint_start=klass.HINT_START,
+                heredoc_tag_is_identifier=attrs.get("HEREDOC_TAG_IS_IDENTIFIER", False),
+                string_escapes_allowed_in_raw_strings=attrs.get("STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS", True),
+                nested_comments=attrs.get("NESTED_COMMENTS", True),
+                hint_start=attrs.get("HINT_START"),
                 tokens_preceding_hint={
-                    _TOKEN_TYPE_TO_INDEX[v] for v in klass.TOKENS_PRECEDING_HINT
+                    _TOKEN_TYPE_TO_INDEX[v] for v in attrs.get("TOKENS_PRECEDING_HINT", set())
                 },
             )
             token_types = RsTokenTypeSettings(
@@ -589,12 +610,14 @@ class _Tokenizer(type):
                 semicolon=_TOKEN_TYPE_TO_INDEX[TokenType.SEMICOLON],
                 string=_TOKEN_TYPE_TO_INDEX[TokenType.STRING],
                 var=_TOKEN_TYPE_TO_INDEX[TokenType.VAR],
-                heredoc_string_alternative=_TOKEN_TYPE_TO_INDEX[klass.HEREDOC_STRING_ALTERNATIVE],
+                heredoc_string_alternative=_TOKEN_TYPE_TO_INDEX.get(
+                    attrs.get("HEREDOC_STRING_ALTERNATIVE")
+                ),
                 hint=_TOKEN_TYPE_TO_INDEX[TokenType.HINT],
             )
-            klass._RS_TOKENIZER = RsTokenizer(settings, token_types)
+            attrs["_RS_TOKENIZER"] = RsTokenizer(settings, token_types)
         else:
-            klass._RS_TOKENIZER = None
+            attrs["_RS_TOKENIZER"] = None
 
         return klass
 
@@ -769,6 +792,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "ILIKE": TokenType.ILIKE,
         "IN": TokenType.IN,
         "INDEX": TokenType.INDEX,
+        "IDENTITY": TokenType.IDENTITY,
         "INET": TokenType.INET,
         "INNER": TokenType.INNER,
         "INSERT": TokenType.INSERT,
